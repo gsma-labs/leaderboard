@@ -5,8 +5,53 @@ on:
     types: [submitted]
   pull_request:
     types: [labeled]
+  workflow_dispatch:
+    inputs:
+      sync_all:
+        description: 'Sync all model_cards parquet files to HuggingFace'
+        required: false
+        default: 'true'
 
 jobs:
+  # Manual sync job - can be triggered from Actions tab
+  manual-sync:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install pandas pyarrow datasets huggingface_hub
+
+      - name: Find parquet files
+        id: find-parquet
+        run: |
+          FILES=$(find model_cards -name "*.parquet" 2>/dev/null | tr '\n' ' ' || echo "")
+          echo "files=$FILES" >> $GITHUB_OUTPUT
+          echo "Found parquet files: $FILES"
+
+      - name: Sync to HuggingFace
+        if: steps.find-parquet.outputs.files != ''
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python .github/scripts/sync_to_huggingface.py \
+            --files "${{ steps.find-parquet.outputs.files }}"
+
+  # PR-based approval sync
   handle-approval:
     runs-on: ubuntu-latest
     if: |
