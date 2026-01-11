@@ -10,7 +10,6 @@ from pathlib import Path
 
 import pandas as pd
 from datasets import Dataset
-from huggingface_hub import HfApi
 
 
 DATASET_REPO = "GSMA/leaderboard"
@@ -29,7 +28,11 @@ def load_existing_dataset(token: str) -> pd.DataFrame:
         from datasets import load_dataset
 
         existing_ds = load_dataset(DATASET_REPO, split="train", token=token)
-        return existing_ds.to_pandas()
+        df = existing_ds.to_pandas()
+        # Drop index column that HuggingFace stores to avoid duplicates on re-upload
+        if "__index_level_0__" in df.columns:
+            df = df.drop(columns=["__index_level_0__"])
+        return df
     except Exception as e:
         print(f"Warning: Could not load existing dataset: {e}")
         return pd.DataFrame()
@@ -67,6 +70,11 @@ def upload_to_huggingface(df: pd.DataFrame, token: str) -> None:
         df: DataFrame to upload
         token: HuggingFace API token
     """
+    # Drop any lingering index columns and reset to avoid schema conflicts
+    index_cols = [c for c in df.columns if c.startswith("__index_level")]
+    if index_cols:
+        df = df.drop(columns=index_cols)
+    df = df.reset_index(drop=True)
     dataset = Dataset.from_pandas(df)
     dataset.push_to_hub(DATASET_REPO, token=token)
     print(f"Successfully uploaded {len(df)} entries to {DATASET_REPO}")
