@@ -244,7 +244,7 @@ def validate_parquet(parquet_path: Path) -> tuple[dict[str, bool], list[str]]:
             model_format_ok = False
         else:
             provider = model.split("(")[-1].rstrip(")")
-            if provider not in RECOGNIZED_PROVIDERS:
+            if provider.lower() not in [p.lower() for p in RECOGNIZED_PROVIDERS]:
                 errors.append(f"Unrecognized provider: {provider}")
                 provider_recognized = False
 
