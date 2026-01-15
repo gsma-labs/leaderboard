@@ -20,7 +20,7 @@ from datasets import Dataset
 
 
 DATASET_REPO = "GSMA/leaderboard"
-BENCHMARK_COLUMNS = ["teleqna", "telelogs", "telemath", "3gpp_tsg"]
+BENCHMARK_COLUMNS = ["teleqna", "telelogs", "telemath", "3gpp_tsg", "teletables"]
 
 
 def load_existing_dataset(token: str) -> pd.DataFrame:

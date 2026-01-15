@@ -29,6 +29,7 @@ TCI_BASE_ERRORS: dict[str, float] = {
     "telelogs": 3.6,
     "telemath": 2.8,
     "tsg": 2.4,
+    "teletables": 3.6,
     "tci": 1.8,
 }
 TCI_MIN_SCORES_REQUIRED: int = 3

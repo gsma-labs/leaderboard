@@ -156,7 +156,7 @@ jobs:
 
             if (validation.sample_details && Object.keys(validation.sample_details).length > 0) {
               body += '\n### Benchmark Status:\n';
-              const allBenchmarks = ['teleqna', 'telelogs', 'telemath', '3gpp_tsg'];
+              const allBenchmarks = ['teleqna', 'telelogs', 'telemath', '3gpp_tsg', 'teletables'];
               for (const benchmark of allBenchmarks) {
                 const detail = validation.sample_details[benchmark];
                 if (!detail) {

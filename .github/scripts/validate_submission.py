@@ -18,7 +18,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-REQUIRED_COLUMNS = ["model", "teleqna", "telelogs", "telemath", "3gpp_tsg", "date"]
+REQUIRED_COLUMNS = ["model", "teleqna", "telelogs", "telemath", "3gpp_tsg", "teletables", "date"]
 
 RECOGNIZED_PROVIDERS = [
     "Openai",
@@ -43,6 +43,7 @@ BENCHMARK_TO_HF_CONFIG = {
     "telelogs": "telelogs",
     "telemath": "telemath",
     "three_gpp": "3gpp_tsg",
+    "teletables": "teletables",
 }
 
 
@@ -258,7 +259,7 @@ def validate_parquet(parquet_path: Path) -> tuple[dict[str, bool], list[str]]:
     checks["provider_recognized"] = provider_recognized
 
     # Validate score arrays (can be list, tuple, or numpy array from parquet)
-    for col in ["teleqna", "telelogs", "telemath", "3gpp_tsg"]:
+    for col in ["teleqna", "telelogs", "telemath", "3gpp_tsg", "teletables"]:
         if col not in df.columns:
             continue
         for idx, val in df[col].items():
@@ -399,7 +400,7 @@ def main() -> None:
         if not submitted_benchmarks:
             result["errors"].append(
                 "No valid benchmark trajectories found. "
-                "At least one benchmark (teleqna, telelogs, telemath, 3gpp_tsg) required."
+                "At least one benchmark (teleqna, telelogs, telemath, 3gpp_tsg, teletables) required."
             )
 
     # Check that we found required files

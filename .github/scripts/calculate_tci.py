@@ -102,6 +102,7 @@ def transform_to_entries(df: pd.DataFrame) -> list[LeaderboardEntry]:
         telelogs, telelogs_stderr = extract_score(row.get("telelogs"))
         telemath, telemath_stderr = extract_score(row.get("telemath"))
         tsg, tsg_stderr = extract_score(row.get("3gpp_tsg"))
+        teletables, teletables_stderr = extract_score(row.get("teletables"))
 
         entries.append(
             LeaderboardEntry(
@@ -115,6 +116,8 @@ def transform_to_entries(df: pd.DataFrame) -> list[LeaderboardEntry]:
                 telemath_stderr=telemath_stderr,
                 tsg=tsg,
                 tsg_stderr=tsg_stderr,
+                teletables=teletables,
+                teletables_stderr=teletables_stderr,
             )
         )
 

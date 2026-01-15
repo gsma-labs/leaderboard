@@ -22,9 +22,10 @@ TASK_TO_COLUMN = {
     "telelogs": "telelogs",
     "telemath": "telemath",
     "three_gpp": "3gpp_tsg",
+    "teletables": "teletables",
 }
 
-REQUIRED_COLUMNS = ["model", "teleqna", "telelogs", "telemath", "3gpp_tsg", "date"]
+REQUIRED_COLUMNS = ["model", "teleqna", "telelogs", "telemath", "3gpp_tsg", "teletables", "date"]
 
 
 def extract_benchmark_from_task(task_name: str) -> str | None:
@@ -190,6 +191,7 @@ def generate_parquet(
         "telelogs": None,
         "telemath": None,
         "3gpp_tsg": None,
+        "teletables": None,
         "date": date.today().isoformat(),
     }
 

@@ -19,7 +19,7 @@ from scipy.optimize import minimize  # type: ignore[import-untyped]
 from .types import LeaderboardEntry
 
 # Benchmark identifiers (must match LeaderboardEntry attributes)
-BENCHMARKS = ["teleqna", "telelogs", "telemath", "tsg"]
+BENCHMARKS = ["teleqna", "telelogs", "telemath", "tsg", "teletables"]
 
 # Default regularization strengths (tuned for sparse data)
 DEFAULT_LAMBDA_D = 0.1  # Difficulty regularization
