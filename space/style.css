@@ -1,0 +1,746 @@
+/* ── Open Telco Leaderboard — Gradio Space Styles ──────────────────────────── */
+/* Pixel-perfect match to website dark theme                                     */
+
+/* ── Global Overrides ─────────────────────────────────────────────────────── */
+
+.gradio-container {
+    background: #000000 !important;
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+    color: #f5f5f5 !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+}
+
+.gradio-container .prose { color: #f5f5f5 !important; }
+footer { display: none !important; }
+
+/* Hide JS→Python bridge controls */
+#hidden-controls { position: absolute !important; left: -9999px !important; height: 0 !important; overflow: hidden !important; }
+
+/* ── Hero Section ────────────────────────────────────────────────────────── */
+
+.ot-hero-wrap { padding: 0 !important; }
+
+.ot-hero {
+    position: relative;
+    display: flex;
+    align-items: stretch;
+    justify-content: flex-end;
+    border-radius: 20px;
+    background: #07080a;
+    overflow: hidden;
+    margin: 24px 32px;
+    /* banner image is 3.2:1 (tower left, dark title space right); match it so the
+       whole tower shows with no vertical crop. min-height floors it on narrow widths. */
+    aspect-ratio: 32 / 10;
+    min-height: 300px;
+}
+
+.ot-hero-image {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    object-fit: cover;
+    object-position: left center;
+    display: block;
+}
+
+.ot-hero-content {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 48px 6%;
+    flex: 0 1 60%;
+    position: relative;
+    z-index: 1;
+}
+
+.gradio-container .ot-hero-title {
+    font-size: 48px !important;
+    font-weight: 600 !important;
+    color: #f5f5f5;
+    margin: 0;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+}
+
+/* Hero gradient overlay for text readability */
+.ot-hero::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to right, rgba(7, 8, 10, 0) 32%, rgba(7, 8, 10, 0.5) 52%, #07080a 78%);
+    pointer-events: none;
+}
+
+/* ── Main Layout ──────────────────────────────────────────────────────────── */
+
+.ot-main {
+    gap: 0 !important;
+    align-items: stretch !important;
+    min-height: calc(100vh - 420px);
+    flex-wrap: nowrap !important;
+}
+
+/* ── Sidebar ──────────────────────────────────────────────────────────────── */
+
+.ot-sidebar {
+    background: #111113 !important;
+    border-right: 1px solid #2a2b2e;
+    padding: 16px 0 !important;
+    min-width: 200px !important;
+    max-width: 200px !important;
+    flex-shrink: 0 !important;
+}
+
+.sidebar-heading {
+    font-size: 16px;
+    font-weight: 600;
+    color: #f5f5f5;
+    padding: 8px 16px 12px;
+    margin: 0;
+}
+
+.sidebar-lb-btn {
+    display: block;
+    width: 100%;
+    padding: 8px 16px 12px !important;
+    margin: 0 !important;
+    border: none !important;
+    background: transparent !important;
+    color: #f5f5f5 !important;
+    font-size: 16px !important;
+    font-weight: 600 !important;
+    cursor: pointer;
+    text-align: left;
+    outline: none;
+    transition: color 150ms ease;
+}
+
+.sidebar-lb-btn.active {
+    color: #3b82f6 !important;
+}
+
+.sidebar-lb-btn:hover:not(.active) {
+    color: #9ca3af !important;
+}
+
+
+.sidebar-divider {
+    height: 1px;
+    background: #2a2b2e;
+    margin: 8px 16px;
+}
+
+
+.sidebar-item {
+    display: block;
+    width: calc(100% - 12px);
+    margin: 1px 6px !important;
+    padding: 7px 16px 7px 18px !important;
+    border: none !important;
+    border-radius: 8px;
+    background: transparent !important;
+    color: #9ca3af !important;
+    font-size: 13px !important;
+    font-weight: 400 !important;
+    text-align: left;
+    cursor: pointer;
+    border-left: 2px solid transparent !important;
+    outline: none;
+    transition: all 150ms ease;
+}
+
+.sidebar-item:hover {
+    background: rgba(255, 255, 255, 0.03) !important;
+    color: #f5f5f5 !important;
+}
+
+.sidebar-item.active {
+    border-left-color: #3b82f6 !important;
+    color: #f5f5f5 !important;
+    background: rgba(59, 130, 246, 0.15) !important;
+}
+
+/* ── Content Area ─────────────────────────────────────────────────────────── */
+
+.ot-content {
+    padding: 24px 32px !important;
+    background: #000000 !important;
+    overflow-x: auto;
+    flex: 1 !important;
+}
+
+.ot-display { padding: 0 !important; }
+
+/* ── Leaderboard Table ────────────────────────────────────────────────────── */
+
+.table-wrapper {
+    overflow-x: auto;
+    border-radius: 8px;
+    border: 1px solid #2a2b2e;
+}
+
+.leaderboard-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+    white-space: nowrap;
+}
+
+.leaderboard-table thead tr {
+    background: #0a0a0c;
+}
+
+.leaderboard-table th {
+    padding: 12px 16px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    color: #737373;
+    border-bottom: 1px solid #2a2b2e;
+    position: sticky;
+    top: 0;
+    background: #0a0a0c;
+    z-index: 1;
+    cursor: pointer;
+    user-select: none;
+    transition: color 150ms ease;
+}
+
+.leaderboard-table th:hover {
+    color: #d1d5db;
+}
+
+.leaderboard-table th.col-rank,
+.leaderboard-table th.col-model {
+    cursor: default;
+}
+
+.leaderboard-table th.col-active {
+    color: #3b82f6;
+    background: rgba(59, 130, 246, 0.04);
+}
+
+.leaderboard-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(42, 43, 46, 0.5);
+    color: #f5f5f5;
+}
+
+.leaderboard-table tbody tr:hover {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+/* Column alignment */
+.col-rank { text-align: center; width: 50px; }
+.col-model { text-align: left; min-width: 240px; }
+.col-avg { text-align: center; width: 80px; }
+.col-score { text-align: right; width: 120px; }
+
+td.col-active { background: rgba(59, 130, 246, 0.04); }
+
+/* ── Rank Styling (plain numbers, not badges) ────────────────────────────── */
+
+.rank-num {
+    font-size: 14px;
+    font-weight: 600;
+    color: #737373;
+}
+
+.rank-num.rank-1 { color: #fbbf24; }
+.rank-num.rank-2 { color: #d1d5db; }
+.rank-num.rank-3 { color: #d97706; }
+
+/* ── Model Cell ──────────────────────────────────────────────────────────── */
+
+.model-cell {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.model-logo {
+    width: 18px;
+    height: 18px;
+    border-radius: 8px;
+    flex-shrink: 0;
+    object-fit: cover;
+}
+
+.model-name {
+    font-weight: 500;
+    color: #f5f5f5;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 220px;
+}
+
+/* ── Score Cells ──────────────────────────────────────────────────────────── */
+
+.avg-score {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: #f5f5f5;
+}
+
+.score-main {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: #d1d5db;
+}
+
+.score-stderr {
+    color: #737373;
+    font-size: 12px;
+    margin-left: 2px;
+}
+
+.score-na {
+    color: #4b5563;
+    opacity: 0.5;
+}
+
+.sort-arrow {
+    color: #3b82f6;
+    margin-left: 4px;
+    font-size: 12px;
+}
+
+/* ── Bar Chart ────────────────────────────────────────────────────────────── */
+
+.bar-chart { padding: 8px 0; }
+
+.bar-title {
+    font-size: 22px;
+    font-weight: 700;
+    color: #f5f5f5;
+    margin: 0 0 24px;
+}
+
+.bar-list {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.bar-entry {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.bar-entry-content {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+    min-width: 0;
+}
+
+.bar-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.bar-rank-badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: #292524;
+    font-size: 16px;
+    font-weight: 700;
+    color: #737373;
+    flex-shrink: 0;
+}
+
+.bar-rank-badge.rank-1 { color: #fbbf24; }
+.bar-rank-badge.rank-2 { color: #d1d5db; }
+.bar-rank-badge.rank-3 { color: #d97706; }
+
+.bar-model-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+}
+
+.bar-model-info .model-logo {
+    width: 18px;
+    height: 18px;
+    border-radius: 8px;
+}
+
+.bar-model-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: #f5f5f5;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.bar-score-label {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.bar-score-label .score-main { font-size: 14px; }
+.bar-score-label .score-stderr {
+    color: #737373;
+    font-size: 12px;
+    margin-left: 2px;
+}
+
+.bar-track-wrapper {
+    position: relative;
+    height: 14px;
+}
+
+.bar-track {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 14px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 7px;
+    overflow: visible;
+}
+
+.bar-fill {
+    height: 100%;
+    border-radius: 7px;
+    transform-origin: left;
+    animation: barGrow 0.8s ease-out forwards;
+    transform: scaleX(0);
+}
+
+@keyframes barGrow {
+    to { transform: scaleX(1); }
+}
+
+/* CI ticks and connector */
+.ci-tick {
+    position: absolute;
+    top: 2px;
+    bottom: 2px;
+    width: 2px;
+    height: auto;
+    background: rgba(255, 255, 255, 0.8);
+    z-index: 2;
+}
+
+.ci-connector {
+    position: absolute;
+    top: 50%;
+    height: 2px;
+    background: rgba(255, 255, 255, 0.8);
+    transform: translateY(-50%);
+    z-index: 2;
+}
+
+.bar-empty {
+    padding: 48px;
+    text-align: center;
+    color: #737373;
+    font-size: 14px;
+}
+
+/* ── Benchmark Detail Layout (Gradio-native two-column) ──────────────────── */
+
+.bm-detail-row {
+    gap: 0 !important;
+    flex-wrap: nowrap !important;
+}
+
+/* Hide the detail row initially and when prose/chart are empty (leaderboard view) */
+.bm-detail-row:has(.bm-prose-inner div:empty) {
+    display: none !important;
+}
+
+/* Also hide via JS-set inline style — this CSS rule ensures initial state */
+.bm-prose-inner:empty, .bm-chart-inner:empty {
+    display: none;
+}
+
+.bm-prose-wrap {
+    border-right: 1px solid #2a2b2e;
+    max-height: calc(100vh - 200px);
+    overflow-y: auto !important;
+    scrollbar-width: thin;
+    scrollbar-color: #333 transparent;
+    padding: 0 24px 0 0 !important;
+}
+
+.bm-prose-wrap::-webkit-scrollbar { width: 4px; }
+.bm-prose-wrap::-webkit-scrollbar-track { background: transparent; }
+.bm-prose-wrap::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+
+.bm-chart-wrap {
+    max-height: calc(100vh - 200px);
+    overflow-y: auto !important;
+    scrollbar-width: thin;
+    scrollbar-color: #333 transparent;
+}
+
+.bm-chart-wrap::-webkit-scrollbar { width: 4px; }
+.bm-chart-wrap::-webkit-scrollbar-track { background: transparent; }
+.bm-chart-wrap::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+
+/* ── Benchmark Methodology Prose Styles ──────────────────────────────────── */
+
+.gradio-container .bm-title {
+    font-size: 28px !important;
+    font-weight: 300 !important;
+    letter-spacing: -0.02em !important;
+    color: #f5f5f5;
+    margin: 0 0 24px !important;
+    line-height: 1.2 !important;
+}
+
+.gradio-container .bm-metrics {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 32px !important;
+}
+
+.gradio-container .bm-pill {
+    font-size: 12px !important;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #9ca3af;
+    background: #1a1b1e;
+    border: 1px solid #2a2b2e;
+    border-radius: 100px;
+    padding: 4px 12px;
+    white-space: nowrap;
+}
+
+.gradio-container .bm-description {
+    font-size: 15px !important;
+    line-height: 1.7 !important;
+    color: #9ca3af !important;
+    margin: 0 0 40px !important;
+}
+
+.gradio-container .bm-separator {
+    border: none;
+    border-top: 1px solid #2a2b2e;
+    margin: 0 0 32px !important;
+}
+
+.gradio-container .bm-section-heading {
+    font-size: 18px !important;
+    font-weight: 600 !important;
+    color: #f5f5f5 !important;
+    margin: 40px 0 16px !important;
+    letter-spacing: -0.01em;
+}
+
+.gradio-container .bm-section-content {
+    font-size: 15px !important;
+    line-height: 1.7 !important;
+    color: #9ca3af !important;
+    margin: 0 0 40px !important;
+}
+
+.gradio-container .bm-artifacts {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 40px !important;
+}
+
+.gradio-container .bm-artifact-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px !important;
+    font-weight: 500;
+    color: #3b82f6 !important;
+    text-decoration: none !important;
+    padding: 8px 16px;
+    background: #1a1b1e;
+    border: 1px solid #2a2b2e;
+    border-radius: 8px;
+    transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.bm-artifact-link:hover {
+    border-color: #3b82f6;
+    background: rgba(59, 130, 246, 0.06);
+    text-decoration: none;
+}
+
+.bm-artifact-icon {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+}
+
+/* ── Footer ───────────────────────────────────────────────────────────────── */
+
+.ot-footer-wrap { padding: 0 !important; }
+
+.ot-footer {
+    padding: 24px 40px;
+    border-top: 1px solid #2a2b2e;
+    text-align: center;
+}
+
+.ot-footer p {
+    font-size: 13px;
+    color: #737373;
+    margin: 0;
+}
+
+.ot-footer a {
+    color: #9ca3af;
+    text-decoration: none;
+}
+
+.ot-footer a:hover { color: #f5f5f5; }
+
+/* ── Scrollbar Styling ───────────────────────────────────────────────────── */
+
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #2a2b2e;
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #3a3b3e;
+}
+
+/* ── Mobile Responsive ────────────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+    .ot-hero {
+        flex-direction: column;
+        justify-content: flex-start;
+        margin: 16px;
+        min-height: unset;
+        aspect-ratio: auto;
+    }
+
+    .ot-hero-image {
+        position: relative;
+        inset: auto;
+        width: 100%;
+        max-width: 100%;
+        height: 200px;
+        object-position: left center;
+    }
+
+    .ot-hero-content {
+        flex: 1 1 auto;
+        padding: 24px;
+    }
+
+    .gradio-container .ot-hero-title {
+        font-size: 32px !important;
+    }
+
+    .ot-hero::after {
+        display: none;
+    }
+
+    .ot-main {
+        flex-direction: column !important;
+    }
+
+    .ot-sidebar {
+        border-right: none !important;
+        border-bottom: 1px solid #2a2b2e;
+        padding: 8px 0 !important;
+        display: flex !important;
+        flex-direction: row !important;
+        overflow-x: auto;
+        gap: 0;
+        min-width: unset !important;
+        max-width: unset !important;
+    }
+
+    .sidebar-heading,
+    .sidebar-divider { display: none; }
+
+    .sidebar-item,
+    .sidebar-lb-btn {
+        padding: 8px 16px !important;
+        border-left: none !important;
+        border-bottom: 3px solid transparent !important;
+        font-size: 13px !important;
+        white-space: nowrap;
+        width: auto !important;
+        margin: 0 !important;
+    }
+
+    .sidebar-item.active,
+    .sidebar-lb-btn.active {
+        border-left-color: transparent !important;
+        border-bottom-color: #3b82f6 !important;
+    }
+
+    .ot-content {
+        padding: 16px !important;
+    }
+
+    .leaderboard-table {
+        font-size: 12px;
+    }
+
+    .leaderboard-table th,
+    .leaderboard-table td {
+        padding: 8px 10px;
+    }
+
+    .bar-rank-badge {
+        width: 32px;
+        height: 32px;
+        font-size: 14px;
+    }
+
+    .bm-detail-row {
+        flex-direction: column !important;
+    }
+
+    .bm-prose-wrap {
+        max-height: none !important;
+        border-right: none !important;
+        border-bottom: 1px solid #2a2b2e;
+        padding-right: 0 !important;
+        padding-bottom: 24px !important;
+    }
+
+    .bm-chart-wrap {
+        max-height: none !important;
+    }
+}
+
+/* Reduce motion */
+@media (prefers-reduced-motion: reduce) {
+    .bar-fill {
+        animation: none;
+        transform: scaleX(1);
+    }
+}
