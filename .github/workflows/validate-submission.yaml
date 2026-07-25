@@ -18,10 +18,14 @@ jobs:
       validation_passed: ${{ steps.set-output.outputs.passed }}
 
     steps:
+      # Submissions arrive as fork PRs, whose branch does not exist in this
+      # repo — checking out github.head_ref fails outright. Check out the head
+      # commit from the contributor's own repo instead.
       - name: Checkout PR branch
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.head_ref }}  # Checkout PR branch for committing
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -86,8 +90,12 @@ jobs:
           GENERATED_FILES=$(echo "$GENERATED_FILES" | xargs)  # Trim whitespace
           echo "generated=$GENERATED_FILES" >> $GITHUB_OUTPUT
 
+      # Only possible on same-repo PRs; a fork branch is not ours to push to.
+      # Fork submissions ship the parquet directly, so nothing is lost.
       - name: Commit generated parquet
-        if: steps.generate-parquet.outputs.generated != ''
+        if: |
+          steps.generate-parquet.outputs.generated != '' &&
+          github.event.pull_request.head.repo.full_name == github.repository
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
@@ -141,6 +149,14 @@ jobs:
                 }
                 body += '\n';
               }
+            }
+
+            if (validation.warnings && validation.warnings.length > 0) {
+              body += '### Warnings (do not block merge):\n';
+              for (const warning of validation.warnings) {
+                body += `- ${warning}\n`;
+              }
+              body += '\n';
             }
 
             body += '### Checklist:\n';

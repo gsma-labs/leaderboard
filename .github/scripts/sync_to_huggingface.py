@@ -16,7 +16,57 @@ from pathlib import Path
 import pandas as pd
 from datasets import Dataset
 
+from registry import get_benchmark_columns, rename_aliased_columns
+
 DATASET_REPO = "GSMA/leaderboard"
+
+
+def _normalize_score(value: object) -> str | None:
+    """Convert a submission score cell to the leaderboard's stored encoding.
+
+    Submissions carry ``[score, stderr, n_samples]`` on a 0-100 scale; the
+    dataset stores the string ``"[score, stderr]"`` on a 0-1 scale.
+    """
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return value  # already in dataset encoding
+    try:
+        score, stderr = float(value[0]), float(value[1])
+    except (TypeError, ValueError, IndexError):
+        return None
+    if pd.isna(score):
+        return None
+    # ponytail: >1 means percent. Only ambiguous for a genuine 1% score,
+    # which no benchmark here produces. Add an explicit scale column if it ever does.
+    if score > 1.0:
+        score, stderr = score / 100, stderr / 100
+    return f"[{round(score, 6)}, {round(stderr, 6)}]"
+
+
+def normalize_submission(df: pd.DataFrame) -> pd.DataFrame:
+    """Coerce a submission parquet into the live leaderboard schema.
+
+    Splits ``"name (Provider)"`` into separate model/provider columns, renames
+    legacy benchmark columns, drops columns the leaderboard does not carry
+    (``date``, benchmarks not yet on the board), and rewrites score cells to
+    the dataset's 0-1 string encoding.  ``average``/``rank``/
+    ``benchmarks_completed`` are deliberately left out — calculate_avg_score.py
+    recomputes them across the whole board after the merge.
+    """
+    df = rename_aliased_columns(df).copy()
+
+    models = df["model"].astype(str)
+    parenthesised = models.str.match(r"^.+ \(.+\)$")
+    df["provider"] = models.where(~parenthesised, models.str.rsplit(" (", n=1).str[-1].str.rstrip(")"))
+    df["provider"] = df["provider"].where(parenthesised, None)
+    df["model"] = models.where(~parenthesised, models.str.rsplit(" (", n=1).str[0])
+
+    benchmark_cols = [c for c in get_benchmark_columns() if c in df.columns]
+    for col in benchmark_cols:
+        df[col] = [_normalize_score(v) for v in df[col]]
+
+    return df[["model", "provider", *benchmark_cols]]
 
 
 def load_existing_dataset(token: str) -> pd.DataFrame:
@@ -150,7 +200,7 @@ def main() -> None:
             continue
 
         try:
-            df = pd.read_parquet(path)
+            df = normalize_submission(pd.read_parquet(path))
             new_rows.append(df)
             print(f"Loaded {len(df)} entries from {path}")
         except Exception as e:

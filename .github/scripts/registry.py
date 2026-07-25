@@ -20,16 +20,31 @@ REGISTRY_URL = (
 )
 
 # Task name (from evals __all__) -> HuggingFace column name.
-# When a new eval is added to gsma-labs/evals, a corresponding entry
-# MUST be added here — fetch_registry_benchmarks() will raise otherwise.
+# These MUST match the live column names in the GSMA/leaderboard dataset.
+# A benchmark in the evals registry with no entry here is simply not on the
+# leaderboard yet; it is ignored rather than treated as an error, so adding an
+# eval upstream can never break submissions.
 BENCHMARK_HF_COLUMNS: dict[str, str] = {
     "teleqna": "teleqna",
     "oranbench": "oranbench",
     "srsranbench": "srsranbench",
     "telelogs": "telelogs",
     "telemath": "telemath",
-    "three_gpp": "3gpp_tsg",
+    "three_gpp": "three_gpp",
     "teletables": "teletables",
+}
+
+# Column names emitted by older submission tooling -> current column name.
+COLUMN_ALIASES: dict[str, str] = {
+    "3gpp_tsg": "three_gpp",
+}
+
+# Task name -> config name in the GSMA/open_telco source dataset. This is a
+# DIFFERENT namespace from the leaderboard columns above; they coincide for
+# every benchmark except three_gpp, which is why the two were once conflated.
+# Only listed where it differs from the task name.
+BENCHMARK_DATASET_CONFIGS: dict[str, str] = {
+    "three_gpp": "3gpp_tsg",
 }
 
 _FETCH_TIMEOUT_SECONDS = 10
@@ -95,21 +110,21 @@ def fetch_registry_benchmarks() -> list[str]:
 
 
 def get_benchmark_to_hf_map() -> dict[str, str]:
-    """Return task_name -> HF column mapping, validated against the registry.
+    """Return task_name -> HF column mapping for benchmarks on the leaderboard.
 
-    Raises:
-        RuntimeError: If the registry contains benchmarks without a local
-            HF column mapping.  This forces the maintainer to update
-            ``BENCHMARK_HF_COLUMNS`` when new evals are added upstream.
+    Benchmarks present in the evals registry but absent from
+    ``BENCHMARK_HF_COLUMNS`` are not on the leaderboard yet and are skipped
+    with a warning.  Raising here instead would break every submission the
+    moment a new eval lands upstream.
     """
     registry = fetch_registry_benchmarks()
     unmapped = [b for b in registry if b not in BENCHMARK_HF_COLUMNS]
     if unmapped:
-        raise RuntimeError(
-            f"Registry contains benchmarks without HF column mapping: {unmapped}. "
-            f"Update BENCHMARK_HF_COLUMNS in registry.py to include them."
+        print(
+            f"Note: registry benchmarks not yet on the leaderboard: {unmapped}. "
+            f"Add them to BENCHMARK_HF_COLUMNS in registry.py to include them."
         )
-    return {b: BENCHMARK_HF_COLUMNS[b] for b in registry}
+    return {b: BENCHMARK_HF_COLUMNS[b] for b in registry if b in BENCHMARK_HF_COLUMNS}
 
 
 def get_required_columns() -> list[str]:
@@ -126,3 +141,19 @@ def get_benchmark_columns() -> list[str]:
     """Return just the benchmark HF column names (no 'model'/'date')."""
     hf_map = get_benchmark_to_hf_map()
     return sorted(hf_map.values())
+
+
+def get_dataset_config(benchmark: str) -> str:
+    """Return the GSMA/open_telco config name for a benchmark task name."""
+    return BENCHMARK_DATASET_CONFIGS.get(benchmark, benchmark)
+
+
+def rename_aliased_columns(df):
+    """Rename legacy submission column names to their current equivalents.
+
+    Submission parquets built by older tooling use ``3gpp_tsg`` where the
+    leaderboard uses ``three_gpp``.  Returns a new DataFrame; the original is
+    left untouched.
+    """
+    present = {old: new for old, new in COLUMN_ALIASES.items() if old in df.columns}
+    return df.rename(columns=present) if present else df

@@ -78,11 +78,21 @@ jobs:
       contents: write
 
     steps:
-      - name: Checkout PR branch
+      # This job holds HF_TOKEN, so it must run OUR scripts, never the PR's.
+      # Check out main for the code, then take only the submitted data files
+      # from the PR head (which for a fork lives at refs/pull/N/head, not in a
+      # local branch — checking out github.head_ref here always failed).
+      - name: Checkout main
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
+          ref: main
           fetch-depth: 0
+
+      - name: Take submission files from PR head
+        run: |
+          git fetch origin "pull/${{ github.event.pull_request.number }}/head:pr-head"
+          git checkout pr-head -- model_cards/ trajectories/
+          git status --short
 
       - name: Setup Python
         uses: actions/setup-python@v5

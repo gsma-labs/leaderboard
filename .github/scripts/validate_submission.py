@@ -18,8 +18,17 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from registry import get_benchmark_columns, get_benchmark_to_hf_map, get_required_columns
+from registry import (
+    get_benchmark_columns,
+    get_benchmark_to_hf_map,
+    get_dataset_config,
+    get_required_columns,
+    rename_aliased_columns,
+)
 
+# Providers we already know. An unknown provider is reported as a warning, not
+# an error: the leaderboard is open to any operator or vendor, and a hard
+# whitelist here would block every new contributor.
 RECOGNIZED_PROVIDERS = [
     "Openai",
     "Anthropic",
@@ -58,12 +67,12 @@ def fetch_expected_sample_counts(token: str | None = None) -> dict[str, int | No
     expected_counts: dict[str, int | None] = {}
     max_retries = 3
 
-    for benchmark, hf_config in benchmark_to_hf.items():
+    for benchmark in benchmark_to_hf:
         for attempt in range(max_retries):
             try:
                 ds = load_dataset(
                     OPEN_TELCO_DATASET,
-                    name=hf_config,
+                    name=get_dataset_config(benchmark),
                     split="test",
                     token=token,
                 )
@@ -207,14 +216,16 @@ def validate_sample_counts(
     return checks, display_details, errors
 
 
-def validate_parquet(parquet_path: Path) -> tuple[dict[str, bool], list[str]]:
+def validate_parquet(
+    parquet_path: Path,
+) -> tuple[dict[str, bool], list[str], list[str]]:
     """Validate parquet file structure.
 
     Args:
         parquet_path: Path to parquet file
 
     Returns:
-        Tuple of (checks dict, errors list)
+        Tuple of (checks dict, errors list, warnings list)
     """
     checks = {
         "parquet_exists": False,
@@ -222,19 +233,20 @@ def validate_parquet(parquet_path: Path) -> tuple[dict[str, bool], list[str]]:
         "model_format": False,
         "provider_recognized": False,
     }
-    errors = []
+    errors: list[str] = []
+    warnings: list[str] = []
 
     if not parquet_path.exists():
         errors.append(f"Parquet file not found: {parquet_path}")
-        return checks, errors
+        return checks, errors, warnings
 
     checks["parquet_exists"] = True
 
     try:
-        df = pd.read_parquet(parquet_path, engine="pyarrow")
+        df = rename_aliased_columns(pd.read_parquet(parquet_path, engine="pyarrow"))
     except Exception as e:
         errors.append(f"Failed to read parquet: {e}")
-        return checks, errors
+        return checks, errors, warnings
 
     # Check required columns
     missing = set(get_required_columns()) - set(df.columns)
@@ -245,7 +257,6 @@ def validate_parquet(parquet_path: Path) -> tuple[dict[str, bool], list[str]]:
 
     # Validate model format: "model_name (Provider)"
     model_format_ok = True
-    provider_recognized = True
 
     for model in df["model"].unique():
         if " (" not in model or not model.endswith(")"):
@@ -254,11 +265,14 @@ def validate_parquet(parquet_path: Path) -> tuple[dict[str, bool], list[str]]:
         else:
             provider = model.split("(")[-1].rstrip(")")
             if provider.lower() not in [p.lower() for p in RECOGNIZED_PROVIDERS]:
-                errors.append(f"Unrecognized provider: {provider}")
-                provider_recognized = False
+                warnings.append(
+                    f"Provider '{provider}' is new to the leaderboard — "
+                    f"a maintainer should confirm it names a real organisation."
+                )
 
     checks["model_format"] = model_format_ok
-    checks["provider_recognized"] = provider_recognized
+    # New providers are welcome; the warning above is for the reviewer.
+    checks["provider_recognized"] = True
 
     # Validate score arrays (can be list, tuple, or numpy array from parquet)
     for col in get_benchmark_columns():
@@ -269,7 +283,7 @@ def validate_parquet(parquet_path: Path) -> tuple[dict[str, bool], list[str]]:
                 if not isinstance(val, (list, tuple, np.ndarray)) or len(val) < 2:
                     errors.append(f"Invalid score format in {col} row {idx}: expected [score, stderr, ...]")
 
-    return checks, errors
+    return checks, errors, warnings
 
 
 def validate_sample_counts_from_parquet(
@@ -303,7 +317,7 @@ def validate_sample_counts_from_parquet(
         if path.suffix != ".parquet" or not path.exists():
             continue
         try:
-            df = pd.read_parquet(path, engine="pyarrow")
+            df = rename_aliased_columns(pd.read_parquet(path, engine="pyarrow"))
         except Exception:
             continue
 
@@ -467,6 +481,7 @@ def main() -> None:
     result: dict = {
         "passed": True,
         "errors": [],
+        "warnings": [],
         "checks": {
             "parquet_exists": True,
             "parquet_schema": True,
@@ -495,11 +510,12 @@ def main() -> None:
 
         if path.suffix == ".parquet":
             parquet_found = True
-            checks, errors = validate_parquet(path)
+            checks, errors, warnings = validate_parquet(path)
             for key, value in checks.items():
                 if not value:
                     result["checks"][key] = False
             result["errors"].extend(errors)
+            result["warnings"].extend(warnings)
 
         elif path.suffix == ".json":
             json_files.append(path)
@@ -571,6 +587,10 @@ def main() -> None:
         print("Errors:")
         for error in result["errors"]:
             print(f"  - {error}")
+    if result["warnings"]:
+        print("Warnings:")
+        for warning in result["warnings"]:
+            print(f"  - {warning}")
 
     sys.exit(0 if result["passed"] else 1)
 
