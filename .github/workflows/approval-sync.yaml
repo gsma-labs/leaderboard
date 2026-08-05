@@ -7,10 +7,9 @@ on:
     types: [labeled]
   workflow_dispatch:
     inputs:
-      sync_all:
-        description: 'Sync all model_cards parquet files to HuggingFace'
-        required: false
-        default: 'true'
+      files:
+        description: 'Space-separated model_cards/*.parquet paths to sync'
+        required: true
 
 jobs:
   # Manual sync job - can be triggered from Actions tab
@@ -36,12 +35,22 @@ jobs:
         run: |
           pip install pandas pyarrow datasets huggingface_hub numpy
 
-      - name: Find parquet files
+      # Named cards only. Globbing model_cards/ would also push older cards
+      # whose scores no longer match the published board, silently rewriting
+      # models this run was never meant to touch.
+      - name: Check requested files
         id: find-parquet
+        env:
+          FILES: ${{ inputs.files }}
         run: |
-          FILES=$(find model_cards -name "*.parquet" 2>/dev/null | tr '\n' ' ' || echo "")
+          for f in $FILES; do
+            case "$f" in
+              model_cards/*.parquet) [ -f "$f" ] || { echo "not on main: $f"; exit 1; } ;;
+              *) echo "refusing non-card path: $f"; exit 1 ;;
+            esac
+          done
           echo "files=$FILES" >> $GITHUB_OUTPUT
-          echo "Found parquet files: $FILES"
+          echo "Syncing: $FILES"
 
       - name: Sync to HuggingFace
         if: steps.find-parquet.outputs.files != ''
