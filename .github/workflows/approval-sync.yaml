@@ -49,7 +49,7 @@ jobs:
               *) echo "refusing non-card path: $f"; exit 1 ;;
             esac
           done
-          echo "files=$FILES" >> $GITHUB_OUTPUT
+          echo "files=$FILES" >> "$GITHUB_OUTPUT"
           echo "Syncing: $FILES"
 
       - name: Sync to HuggingFace
@@ -67,14 +67,8 @@ jobs:
         run: |
           python .github/scripts/calculate_avg_score.py
 
-      - name: Trigger ot_hub deployment
-        if: steps.find-parquet.outputs.files != ''
-        uses: peter-evans/repository-dispatch@v3
-        with:
-          token: ${{ secrets.OT_HUB_DISPATCH_TOKEN }}
-          repository: gsma-research/ot_hub
-          event-type: leaderboard-updated
-          client-payload: '{"trigger": "manual-sync"}'
+      # The public Hugging Face Space refreshes GSMA/leaderboard directly.
+      # No deployment of the former ot_hub website is needed after a sync.
 
   # PR-based approval sync
   handle-approval:
@@ -120,7 +114,7 @@ jobs:
         id: find-parquet
         run: |
           FILES=$(git diff --cached --name-only -- 'model_cards/*.parquet' | tr '\n' ' ')
-          echo "files=$FILES" >> $GITHUB_OUTPUT
+          echo "files=$FILES" >> "$GITHUB_OUTPUT"
           if [ -n "$FILES" ]; then
             echo "Syncing parquet files from this PR: $FILES"
           else
@@ -247,13 +241,8 @@ jobs:
               body: `:rocket: **Submission approved, merged, and synced!**\n\nYour evaluation has been:\n- :white_check_mark: Merged to the repository (trajectories archived)\n- :white_check_mark: Synced to [GSMA/leaderboard](https://huggingface.co/datasets/GSMA/leaderboard) on HuggingFace\n\nThank you for your contribution!`
             });
 
-      - name: Trigger ot_hub deployment
-        uses: peter-evans/repository-dispatch@v3
-        with:
-          token: ${{ secrets.OT_HUB_DISPATCH_TOKEN }}
-          repository: gsma-research/ot_hub
-          event-type: leaderboard-updated
-          client-payload: '{"pr_number": "${{ github.event.pull_request.number }}"}'
+      # The public Hugging Face Space refreshes GSMA/leaderboard directly.
+      # No deployment of the former ot_hub website is needed after a sync.
 
   handle-changes-requested:
     runs-on: ubuntu-latest
