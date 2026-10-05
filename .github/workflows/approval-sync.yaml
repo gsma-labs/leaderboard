@@ -49,7 +49,7 @@ jobs:
               *) echo "refusing non-card path: $f"; exit 1 ;;
             esac
           done
-          echo "files=$FILES" >> $GITHUB_OUTPUT
+          echo "files=$FILES" >> "$GITHUB_OUTPUT"
           echo "Syncing: $FILES"
 
       - name: Sync to HuggingFace
@@ -114,7 +114,7 @@ jobs:
         id: find-parquet
         run: |
           FILES=$(git diff --cached --name-only -- 'model_cards/*.parquet' | tr '\n' ' ')
-          echo "files=$FILES" >> $GITHUB_OUTPUT
+          echo "files=$FILES" >> "$GITHUB_OUTPUT"
           if [ -n "$FILES" ]; then
             echo "Syncing parquet files from this PR: $FILES"
           else
