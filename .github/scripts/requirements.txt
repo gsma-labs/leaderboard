@@ -1,0 +1,7 @@
+pandas>=2.2,<4
+pyarrow>=17,<24
+numpy>=1.26,<3
+datasets>=3,<5
+huggingface_hub>=0.28,<2
+PyYAML>=6,<7
+pytest>=8,<10

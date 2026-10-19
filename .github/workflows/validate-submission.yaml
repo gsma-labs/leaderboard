@@ -1,282 +1,43 @@
 name: Validate Leaderboard Submission
 
 on:
-  pull_request:
+  pull_request_target:
+    branches: [main]
     types: [opened, synchronize, reopened]
-    paths:
-      - 'model_cards/**'
-      - 'trajectories/**'
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'Open PR number to validate at its current head'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  statuses: write
+  pull-requests: write
 
 jobs:
   validate:
     runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write
-      contents: write  # Need write to commit generated parquet
-
-    outputs:
-      validation_passed: ${{ steps.set-output.outputs.passed }}
-
     steps:
-      # Submissions arrive as fork PRs, whose branch does not exist in this
-      # repo — checking out github.head_ref fails outright. Check out the head
-      # commit from the contributor's own repo instead.
-      - name: Checkout PR branch
+      - name: Checkout trusted main scripts
         uses: actions/checkout@v4
         with:
-          repository: ${{ github.event.pull_request.head.repo.full_name }}
-          ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
+          ref: main
+          path: trusted
+          persist-credentials: false
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
-      - name: Install dependencies
-        run: |
-          pip install pandas pyarrow datasets huggingface_hub
-
-      - name: Get changed files
-        id: changed-files
-        uses: tj-actions/changed-files@2f7c5bfce28377bc069a65ba478de0a74aa0ca32 # v46.0.1
-        with:
-          files: |
-            model_cards/**
-            trajectories/**
-
-      - name: Find trajectory directories
-        id: find-trajectories
-        run: |
-          TRAJ_DIRS=""
-          for dir in trajectories/*/; do
-            if [ -d "$dir" ]; then
-              JSON_COUNT=$(find "$dir" -name "*.json" -type f 2>/dev/null | wc -l)
-              if [ "$JSON_COUNT" -gt 0 ]; then
-                TRAJ_DIRS="$TRAJ_DIRS $dir"
-              fi
-            fi
-          done
-          TRAJ_DIRS=$(echo "$TRAJ_DIRS" | xargs)  # Trim whitespace
-          echo "dirs=$TRAJ_DIRS" >> $GITHUB_OUTPUT
-          echo "Found trajectory directories: $TRAJ_DIRS"
-
-      - name: Generate parquet from trajectories
-        id: generate-parquet
-        if: steps.find-trajectories.outputs.dirs != ''
-        run: |
-          GENERATED_FILES=""
-          for dir in ${{ steps.find-trajectories.outputs.dirs }}; do
-            DIR_NAME=$(basename "$dir")
-            OUTPUT_PATH="model_cards/${DIR_NAME}.parquet"
-
-            # Skip if parquet already exists
-            if [ -f "$OUTPUT_PATH" ]; then
-              echo "Parquet already exists: $OUTPUT_PATH"
-              continue
-            fi
-
-            echo "Generating parquet for $dir..."
-            python .github/scripts/json_to_parquet.py \
-              --trajectory-dir "$dir" \
-              --output-dir "model_cards/"
-
-            if [ -f "$OUTPUT_PATH" ]; then
-              GENERATED_FILES="$GENERATED_FILES $OUTPUT_PATH"
-              echo "Generated: $OUTPUT_PATH"
-            fi
-          done
-          GENERATED_FILES=$(echo "$GENERATED_FILES" | xargs)  # Trim whitespace
-          echo "generated=$GENERATED_FILES" >> $GITHUB_OUTPUT
-
-      # Only possible on same-repo PRs; a fork branch is not ours to push to.
-      # Fork submissions ship the parquet directly, so nothing is lost.
-      - name: Commit generated parquet
-        if: |
-          steps.generate-parquet.outputs.generated != '' &&
-          github.event.pull_request.head.repo.full_name == github.repository
-        run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          git add model_cards/*.parquet
-          git diff --staged --quiet || git commit -m "chore: Generate parquet from trajectory files"
-          git push || echo "Nothing to push"
-
-      - name: Validate submission
-        id: validate
+      - name: Install trusted dependencies
+        run: pip install -r trusted/.github/scripts/requirements.txt
+      - name: Validate immutable PR data and report exact-head status
         env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: |
-          # Include both changed files and generated parquet files
-          ALL_FILES="${{ steps.changed-files.outputs.all_changed_files }}"
-          if [ -n "${{ steps.generate-parquet.outputs.generated }}" ]; then
-            ALL_FILES="$ALL_FILES ${{ steps.generate-parquet.outputs.generated }}"
-          fi
-          python .github/scripts/validate_submission.py \
-            --files "$ALL_FILES"
-        continue-on-error: true
-
-      - name: Post validation results
-        uses: actions/github-script@v7
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python trusted/.github/scripts/run_submission_pipeline.py validate
+      - name: Save validation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          script: |
-            const fs = require('fs');
-
-            let validation;
-            try {
-              validation = JSON.parse(fs.readFileSync('validation_result.json', 'utf8'));
-            } catch (e) {
-              validation = {
-                passed: false,
-                errors: ['Validation script failed to produce results'],
-                checks: {},
-                sample_details: {}
-              };
-            }
-
-            let body = '## Submission Validation Results\n\n';
-
-            if (validation.passed) {
-              body += ':white_check_mark: **All validations passed!**\n\n';
-              body += 'A maintainer will review your submission shortly.\n\n';
-            } else {
-              body += ':x: **Validation failed**\n\n';
-              if (validation.errors && validation.errors.length > 0) {
-                body += '### Errors:\n';
-                for (const error of validation.errors) {
-                  body += `- ${error}\n`;
-                }
-                body += '\n';
-              }
-            }
-
-            if (validation.warnings && validation.warnings.length > 0) {
-              body += '### Warnings (do not block merge):\n';
-              for (const warning of validation.warnings) {
-                body += `- ${warning}\n`;
-              }
-              body += '\n';
-            }
-
-            body += '### Checklist:\n';
-            const checks = validation.checks || {};
-            body += `- [${checks.parquet_exists ? 'x' : ' '}] Parquet file exists\n`;
-            body += `- [${checks.parquet_schema ? 'x' : ' '}] Parquet has required columns\n`;
-            body += `- [${checks.json_valid ? 'x' : ' '}] JSON trajectory files are valid\n`;
-            body += `- [${checks.model_format ? 'x' : ' '}] Model field matches expected format\n`;
-            body += `- [${checks.provider_recognized ? 'x' : ' '}] Provider is recognized\n`;
-            body += `- [${checks.inspect_eval ? 'x' : ' '}] Evaluation done using Inspect\n`;
-            body += `- [${checks.no_errors ? 'x' : ' '}] No errors in trajectory logs\n`;
-            body += `- [${checks.sample_count_valid ? 'x' : ' '}] Sample counts match expected (no --limit)\n`;
-
-            if (validation.sample_details && Object.keys(validation.sample_details).length > 0) {
-              body += '\n### Benchmark Status:\n';
-              for (const [benchmark, detail] of Object.entries(validation.sample_details)) {
-                const icon = detail.valid ? ':white_check_mark:' : ':x:';
-                const expected = detail.expected === 'unknown' ? '?' : detail.expected;
-                const skipped = detail.skipped ? ' *(validation skipped)*' : '';
-                body += `- ${icon} **${benchmark}**: ${detail.actual} / ${expected} samples${skipped}\n`;
-              }
-            }
-
-            await github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: body
-            });
-
-      - name: Set output
-        id: set-output
-        run: |
-          if [ -f validation_result.json ]; then
-            PASSED=$(python3 -c "import json; print(str(json.load(open('validation_result.json'))['passed']))")
-            echo "passed=$PASSED" >> $GITHUB_OUTPUT
-          else
-            echo "passed=False" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Fail if validation failed
-        if: steps.validate.outcome == 'failure'
-        run: exit 1
-
-  on-validation-pass:
-    runs-on: ubuntu-latest
-    needs: validate
-    if: needs.validate.outputs.validation_passed == 'True'
-    permissions:
-      pull-requests: write
-
-    steps:
-      - name: Request review from maintainer
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const prNumber = context.issue.number;
-
-            // Add ready-for-review label
-            await github.rest.issues.addLabels({
-              issue_number: prNumber,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              labels: ['submission', 'ready-for-review']
-            });
-
-            // Remove needs-work label if present
-            try {
-              await github.rest.issues.removeLabel({
-                issue_number: prNumber,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                name: 'needs-work'
-              });
-            } catch (e) {
-              // Label may not exist, ignore
-            }
-
-            // Request review from @eaguaida
-            try {
-              await github.rest.pulls.requestReviewers({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                pull_number: prNumber,
-                reviewers: ['eaguaida']
-              });
-            } catch (e) {
-              console.log('Could not request review:', e.message);
-            }
-
-  on-validation-fail:
-    runs-on: ubuntu-latest
-    needs: validate
-    if: needs.validate.outputs.validation_passed == 'False'
-    permissions:
-      pull-requests: write
-
-    steps:
-      - name: Add needs-work label
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const prNumber = context.issue.number;
-
-            // Add needs-work label
-            await github.rest.issues.addLabels({
-              issue_number: prNumber,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              labels: ['submission', 'needs-work']
-            });
-
-            // Remove ready-for-review label if present
-            try {
-              await github.rest.issues.removeLabel({
-                issue_number: prNumber,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                name: 'ready-for-review'
-              });
-            } catch (e) {
-              // Label may not exist, ignore
-            }
+          name: submission-validation-${{ github.run_id }}
+          path: reports/
