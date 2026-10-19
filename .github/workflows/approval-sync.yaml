@@ -1,289 +1,50 @@
-name: Approval Sync to HuggingFace
+name: Publish Merged Leaderboard Submission
 
 on:
-  pull_request_review:
-    types: [submitted]
-  pull_request:
-    types: [labeled]
+  pull_request_target:
+    branches: [main]
+    types: [closed]
   workflow_dispatch:
     inputs:
-      files:
-        description: 'Space-separated model_cards/*.parquet paths to sync'
+      pr_number:
+        description: 'Merged PR number to retry'
         required: true
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: write
+
+# Every Hub publisher uses this fixed group. GitHub queues up to 100 pending runs.
+concurrency:
+  group: leaderboard-publication
+  queue: max
+  cancel-in-progress: false
 
 jobs:
-  # Manual sync job - can be triggered from Actions tab
-  manual-sync:
+  publish:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch'
-    permissions:
-      contents: read
-
     steps:
-      - name: Checkout main
+      - name: Checkout trusted main scripts
         uses: actions/checkout@v4
         with:
           ref: main
-          fetch-depth: 0
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
+          path: trusted
+          persist-credentials: false
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
-      - name: Install dependencies
-        run: |
-          pip install pandas pyarrow datasets huggingface_hub numpy
-
-      # Named cards only. Globbing model_cards/ would also push older cards
-      # whose scores no longer match the published board, silently rewriting
-      # models this run was never meant to touch.
-      - name: Check requested files
-        id: find-parquet
+      - name: Install trusted dependencies
+        run: pip install -r trusted/.github/scripts/requirements.txt
+      - name: Revalidate, publish atomically, and verify immutable readback
         env:
-          FILES: ${{ inputs.files }}
-        run: |
-          for f in $FILES; do
-            case "$f" in
-              model_cards/*.parquet) [ -f "$f" ] || { echo "not on main: $f"; exit 1; } ;;
-              *) echo "refusing non-card path: $f"; exit 1 ;;
-            esac
-          done
-          echo "files=$FILES" >> $GITHUB_OUTPUT
-          echo "Syncing: $FILES"
-
-      - name: Sync to HuggingFace
-        if: steps.find-parquet.outputs.files != ''
-        env:
+          GITHUB_TOKEN: ${{ github.token }}
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: |
-          python .github/scripts/sync_to_huggingface.py \
-            --files "${{ steps.find-parquet.outputs.files }}"
-
-      - name: Calculate derived columns
-        if: steps.find-parquet.outputs.files != ''
-        env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: |
-          python .github/scripts/calculate_avg_score.py
-
-      - name: Trigger ot_hub deployment
-        if: steps.find-parquet.outputs.files != ''
-        uses: peter-evans/repository-dispatch@v3
+        run: python trusted/.github/scripts/run_submission_pipeline.py publish
+      - name: Save publication receipt
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          token: ${{ secrets.OT_HUB_DISPATCH_TOKEN }}
-          repository: gsma-research/ot_hub
-          event-type: leaderboard-updated
-          client-payload: '{"trigger": "manual-sync"}'
-
-  # PR-based approval sync
-  handle-approval:
-    runs-on: ubuntu-latest
-    if: |
-      (github.event_name == 'pull_request_review' && github.event.review.state == 'approved') ||
-      (github.event_name == 'pull_request' && github.event.label.name == 'approve')
-    permissions:
-      pull-requests: write
-      contents: write
-
-    steps:
-      # This job holds HF_TOKEN, so it must run OUR scripts, never the PR's.
-      # Check out main for the code, then take only the submitted data files
-      # from the PR head (which for a fork lives at refs/pull/N/head, not in a
-      # local branch — checking out github.head_ref here always failed).
-      - name: Checkout main
-        uses: actions/checkout@v4
-        with:
-          ref: main
-          fetch-depth: 0
-
-      - name: Take submission files from PR head
-        run: |
-          git fetch origin "pull/${{ github.event.pull_request.number }}/head:pr-head"
-          # Separate checkouts: a fork missing either directory is not an error.
-          git checkout pr-head -- model_cards/ || echo "no model_cards/ in PR head"
-          git checkout pr-head -- trajectories/ || echo "no trajectories/ in PR head"
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install dependencies
-        run: |
-          pip install pandas pyarrow datasets huggingface_hub numpy
-
-      # Only what THIS PR changed. Syncing every card in model_cards/ would
-      # also push our older cards, whose scores no longer match the published
-      # board, silently rewriting models the PR never touched.
-      - name: Find parquet files
-        id: find-parquet
-        run: |
-          FILES=$(git diff --cached --name-only -- 'model_cards/*.parquet' | tr '\n' ' ')
-          echo "files=$FILES" >> $GITHUB_OUTPUT
-          if [ -n "$FILES" ]; then
-            echo "Syncing parquet files from this PR: $FILES"
-          else
-            echo "No parquet changes in this PR"
-          fi
-
-      - name: Sync to HuggingFace
-        if: steps.find-parquet.outputs.files != ''
-        env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: |
-          python .github/scripts/sync_to_huggingface.py \
-            --files "${{ steps.find-parquet.outputs.files }}"
-
-      - name: Post sync report
-        if: steps.find-parquet.outputs.files != ''
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            const prNumber = context.payload.pull_request.number;
-
-            let report;
-            try {
-              report = JSON.parse(fs.readFileSync('sync_report.json', 'utf8'));
-            } catch (e) {
-              report = {};
-            }
-
-            let body = '### Sync Report\n\n';
-
-            if (report.new_models && report.new_models.length > 0) {
-              body += '**New models added:**\n';
-              for (const model of report.new_models) {
-                body += `- ${model}\n`;
-              }
-              body += '\n';
-            }
-
-            if (report.updated_models && report.updated_models.length > 0) {
-              body += '**Models updated:**\n';
-              for (const model of report.updated_models) {
-                body += `- ${model}\n`;
-              }
-              body += '\n';
-            }
-
-            if (report.updated_scores && report.updated_scores.length > 0) {
-              body += '**Scores updated:**\n';
-              for (const score of report.updated_scores) {
-                body += `- ${score}\n`;
-              }
-              body += '\n';
-            }
-
-            if (report.preserved_scores && report.preserved_scores.length > 0) {
-              body += '**Existing scores preserved:**\n';
-              for (const score of report.preserved_scores) {
-                body += `- ${score}\n`;
-              }
-            }
-
-            // Only post if there's something to report
-            if (body !== '### Sync Report\n\n') {
-              await github.rest.issues.createComment({
-                issue_number: prNumber,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: body
-              });
-            }
-
-      - name: Calculate derived columns
-        if: steps.find-parquet.outputs.files != ''
-        env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: |
-          python .github/scripts/calculate_avg_score.py
-
-      - name: Merge PR and archive submission
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const prNumber = context.payload.pull_request.number;
-
-            // Add approved and synced labels
-            await github.rest.issues.addLabels({
-              issue_number: prNumber,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              labels: ['approved', 'synced-to-hf']
-            });
-
-            // Remove other status labels
-            const labelsToRemove = ['ready-for-review', 'needs-work'];
-            for (const label of labelsToRemove) {
-              try {
-                await github.rest.issues.removeLabel({
-                  issue_number: prNumber,
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  name: label
-                });
-              } catch (e) {
-                // Label may not exist, ignore
-              }
-            }
-
-            // Merge PR to permanently store trajectories in repo (SWE-bench style)
-            await github.rest.pulls.merge({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: prNumber,
-              merge_method: 'squash',
-              commit_title: `[Submission] ${context.payload.pull_request.title}`,
-              commit_message: `Approved and synced to HuggingFace.\n\nPR: #${prNumber}`
-            });
-
-            // Post success comment after merge
-            await github.rest.issues.createComment({
-              issue_number: prNumber,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: `:rocket: **Submission approved, merged, and synced!**\n\nYour evaluation has been:\n- :white_check_mark: Merged to the repository (trajectories archived)\n- :white_check_mark: Synced to [GSMA/leaderboard](https://huggingface.co/datasets/GSMA/leaderboard) on HuggingFace\n\nThank you for your contribution!`
-            });
-
-      - name: Trigger ot_hub deployment
-        uses: peter-evans/repository-dispatch@v3
-        with:
-          token: ${{ secrets.OT_HUB_DISPATCH_TOKEN }}
-          repository: gsma-research/ot_hub
-          event-type: leaderboard-updated
-          client-payload: '{"pr_number": "${{ github.event.pull_request.number }}"}'
-
-  handle-changes-requested:
-    runs-on: ubuntu-latest
-    if: github.event.review.state == 'changes_requested'
-    permissions:
-      pull-requests: write
-
-    steps:
-      - name: Add needs-work label
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const prNumber = context.payload.pull_request.number;
-
-            // Add needs-work label
-            await github.rest.issues.addLabels({
-              issue_number: prNumber,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              labels: ['needs-work']
-            });
-
-            // Remove ready-for-review label if present
-            try {
-              await github.rest.issues.removeLabel({
-                issue_number: prNumber,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                name: 'ready-for-review'
-              });
-            } catch (e) {
-              // Label may not exist, ignore
-            }
+          name: leaderboard-publication-${{ github.run_id }}
+          path: reports/
